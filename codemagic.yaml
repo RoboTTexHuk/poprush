@@ -1,31 +1,13 @@
 workflows:
   ios-workflow:
-    name: iOS Workflow with Flutter Module
+    name: iOS Build Workflow
     environment:
       flutter: stable
-      xcode: latest
-      cocoapods: default
       vars:
-        BUNDLE_ID: $BUNDLE_ID # Использование переменной окружения
-        DEVELOPMENT_TEAM: $DEVELOPMENT_TEAM
-        CODE_SIGN_IDENTITY: $CODE_SIGN_IDENTITY
-        PROVISIONING_PROFILE: $PROVISIONING_PROFILE
+        APPLE_DEVELOPER_CREDENTIALS: Encrypted(...)
     scripts:
-      - name: Install dependencies for Flutter module
-        script: |
-          cd my_flutter_module
-          flutter pub get
-          flutter build ios --release --no-codesign
-          cd .ios
-          pod install
+      - name: Install dependencies
+        script: flutter pub get
 
-      - name: Build host application
-        script: |
-          cd my_host_app
-          pod install
-          xcodebuild build \
-            -workspace "MyXcodeProject.xcworkspace" \
-            -scheme "MyXcodeScheme" \
-            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
-            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE"
+      - name: Build iOS IPA
+        script: flutter build ipa --release
