@@ -1,13 +1,53 @@
 workflows:
   ios-workflow:
-    name: iOS Build Workflow
+    name: iOS Workflow
+    max_build_duration: 60 # Максимальное время сборки в минутах
     environment:
-      flutter: stable
+      xcode: latest # Используемая версия Xcode. Можно заменить на конкретную, например, 14.0.1
+      flutter: stable # Используемая версия Flutter
+      cocoapods: default # Установить Podfile зависимости (если используется CocoaPods)
       vars:
-        APPLE_DEVELOPER_CREDENTIALS: Encrypted(...)
+        BUNDLE_ID: "com.llrush.poponsrush" # Бандл приложения
+        APPLE_TEAM_ID: Encrypted(...) # Apple Team ID
+        APPLE_SIGNING_KEY: Encrypted(...) # Зашифрованный ключ разработчика
+        APPLE_SIGNING_KEY_PASSWORD: Encrypted(...) # Пароль для ключа
+        APPLE_CERTIFICATE: Encrypted(...) # Зашифрованный сертификат разработчика (p12)
+        APPLE_PROVISIONING_PROFILE: Encrypted(...) # Профиль для подписи
     scripts:
       - name: Install dependencies
         script: flutter pub get
 
       - name: Build iOS IPA
-        script: flutter build ipa --release
+        script: flutter build ipa --release --no-codesign
+
+      - name: Set up signing
+        script: |
+          # Расшифровка сертификата и профиля
+          echo $APPLE_CERTIFICATE | base64 --decode > signing_certificate.p12
+          echo $APPLE_PROVISIONING_PROFILE | base64 --decode > provisioning_profile.mobileprovision
+
+          # Установка сертификата
+          security import signing_certificate.p12 -P "$APPLE_SIGNING_KEY_PASSWORD" -A
+
+          # Добавление профиля в Xcode
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp provisioning_profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Sign and export IPA
+        script: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/ios/ipa \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$APPLE_PROVISIONING_PROFILE" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+
+      - name: Upload to TestFlight
+        script: |
+          xcrun altool --upload-app \
+          -f build/ios/ipa/Runner.ipa \
+          -t ios \
+          -u "your_apple_id@domain.com" \
+          -p "your_app_specific_password"
